@@ -57,6 +57,15 @@ node_modules/
 *.key
 secrets/
 
+# Local AI / assistant workspace files
+.agent/
+.claude/
+CLAUDE.md
+PROGRESS.md
+
 # OS files
 .DS_Store
 Thumbs.db
+
+.agent/
+.claude/
