@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FinRAG Engine v2</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; display: flex; height: 100vh; background: #f0f2f5; color: #1a1a2e; }
+
+    /* Sidebar */
+    .sidebar { width: 280px; background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; padding: 24px 20px; gap: 24px; overflow-y: auto; }
+    .sidebar h1 { font-size: 1.25rem; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; }
+    .sidebar p.subtitle { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+    .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #475569; margin-bottom: 8px; font-weight: 600; }
+
+    /* Upload */
+    .upload-zone { border: 2px dashed #334155; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+    .upload-zone:hover { border-color: #38bdf8; }
+    .upload-zone input { display: none; }
+    .upload-zone label { cursor: pointer; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .upload-icon { font-size: 2rem; }
+    .upload-zone small { color: #64748b; font-size: 0.72rem; }
+    .upload-progress { display: none; margin-top: 10px; }
+    .progress-bar { height: 4px; background: #1e293b; border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #38bdf8; width: 0%; transition: width 0.3s; border-radius: 2px; }
+    .upload-status { font-size: 0.75rem; color: #94a3b8; margin-top: 6px; text-align: center; }
+
+    /* Filters */
+    .filter-group { display: flex; flex-direction: column; gap: 10px; }
+    .filter-item label { font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 4px; }
+    .filter-item input, .filter-item select {
+      width: 100%; padding: 8px 10px; background: #1e293b; border: 1px solid #334155;
+      border-radius: 8px; color: #e2e8f0; font-size: 0.8rem; outline: none;
+    }
+    .filter-item input:focus, .filter-item select:focus { border-color: #38bdf8; }
+
+    /* Stats */
+    .stats { background: #1e293b; border-radius: 10px; padding: 12px; font-size: 0.78rem; color: #94a3b8; display: flex; flex-direction: column; gap: 6px; }
+    .stat-row { display: flex; justify-content: space-between; }
+    .stat-val { color: #38bdf8; font-weight: 600; }
+
+    /* Main chat */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Header */
+    .header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    .header-dot { width: 10px; height: 10px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 6px #22c55e; }
+    .header h2 { font-size: 1rem; font-weight: 600; color: #0f172a; }
+    .header span { font-size: 0.78rem; color: #94a3b8; margin-left: auto; }
+
+    /* Messages */
+    .messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    .msg { display: flex; gap: 12px; max-width: 85%; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .msg.user .avatar { background: #38bdf8; color: #0f172a; }
+    .msg.assistant .avatar { background: #0f172a; color: #38bdf8; }
+    .bubble { background: #fff; border-radius: 16px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); line-height: 1.6; font-size: 0.9rem; }
+    .msg.user .bubble { background: #0f172a; color: #e2e8f0; border-radius: 16px 4px 16px 16px; }
+    .msg.assistant .bubble { border-radius: 4px 16px 16px 16px; }
+
+    /* Sources */
+    .sources-toggle { margin-top: 10px; font-size: 0.75rem; color: #38bdf8; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 0; }
+    .sources-toggle:hover { text-decoration: underline; }
+    .sources-list { display: none; margin-top: 8px; flex-direction: column; gap: 6px; }
+    .sources-list.visible { display: flex; }
+    .source-chip { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 8px 12px; font-size: 0.75rem; color: #0369a1; display: flex; flex-direction: column; gap: 2px; }
+    .source-chip .src-file { font-weight: 600; }
+    .source-chip .src-loc { color: #64748b; }
+
+    /* Error */
+    .error-bubble { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+
+    /* Loading */
+    .typing { display: flex; gap: 5px; align-items: center; padding: 14px 18px; }
+    .dot { width: 8px; height: 8px; background: #94a3b8; border-radius: 50%; animation: bounce 1.2s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-8px)} }
+
+    /* Input */
+    .input-area { background: #fff; border-top: 1px solid #e2e8f0; padding: 16px 24px; display: flex; gap: 12px; align-items: flex-end; }
+    .input-area textarea { flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; resize: none; font-size: 0.9rem; font-family: inherit; outline: none; max-height: 120px; transition: border-color 0.2s; line-height: 1.5; }
+    .input-area textarea:focus { border-color: #38bdf8; }
+    .send-btn { background: #0f172a; color: #38bdf8; border: none; border-radius: 12px; padding: 12px 20px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background 0.2s; white-space: nowrap; }
+    .send-btn:hover { background: #1e293b; }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Welcome */
+    .welcome { text-align: center; color: #94a3b8; margin: auto; }
+    .welcome h3 { font-size: 1.5rem; margin-bottom: 8px; color: #475569; }
+    .welcome p { font-size: 0.9rem; }
+
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div>
+    <h1>FinRAG Engine</h1>
+    <p class="subtitle">v2.0 · Multi-format RAG Platform</p>
+  </div>
+
+  <!-- Upload -->
+  <div>
+    <div class="section-title">Upload Document</div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".pdf,.docx,.xlsx,.csv" />
+      <label for="fileInput">
+        <span class="upload-icon">&#128196;</span>
+        <span style="font-size:0.82rem;color:#94a3b8;">Click to upload</span>
+        <small>PDF &middot; DOCX &middot; Excel &middot; CSV</small>
+      </label>
+    </div>
+    <div class="upload-progress" id="uploadProgress">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="upload-status" id="uploadStatus">Uploading...</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div>
+    <div class="section-title">Filters</div>
+    <div class="filter-group">
+      <div class="filter-item">
+        <label>User ID (multi-tenancy)</label>
+        <input type="text" id="userId" placeholder="e.g. user_123" />
+      </div>
+      <div class="filter-item">
+        <label>Document Type</label>
+        <select id="docTypeFilter">
+          <option value="">All types</option>
+          <option value="pdf">PDF</option>
+          <option value="docx">DOCX</option>
+          <option value="excel">Excel</option>
+          <option value="csv">CSV</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label>Source File</label>
+        <input type="text" id="sourceFilter" placeholder="e.g. report.pdf" />
+      </div>
+      <div class="filter-item">
+        <label>Results per query</label>
+        <select id="topK">
+          <option value="5">5 chunks</option>
+          <option value="8" selected>8 chunks</option>
+          <option value="12">12 chunks</option>
+          <option value="20">20 chunks</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div>
+    <div class="section-title">Session Stats</div>
+    <div class="stats">
+      <div class="stat-row"><span>Questions asked</span><span class="stat-val" id="statQ">0</span></div>
+      <div class="stat-row"><span>Docs uploaded</span><span class="stat-val" id="statD">0</span></div>
+      <div class="stat-row"><span>Chunks retrieved</span><span class="stat-val" id="statC">0</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main Chat -->
+<main class="main">
+  <div class="header">
+    <div class="header-dot"></div>
+    <h2>Document Intelligence Chat</h2>
+    <span id="headerStatus">Upload a document to get started</span>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcomeMsg">
+      <h3>Ask your documents anything</h3>
+      <p>Upload a PDF, Word doc, Excel file, or CSV in the sidebar,<br/>then ask questions in natural language.</p>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <textarea id="question" rows="1" placeholder="Ask a question about your documents..." onkeydown="handleKey(event)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendQuestion()">Send</button>
+  </div>
+</main>
+
+<script>
+  let statsQ = 0, statsD = 0, statsC = 0;
+
+  // Auto-resize textarea
+  document.getElementById('question').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
+  }
+
+  // File Upload
+  document.getElementById('fileInput').addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+    await uploadFile(file);
+    // Reset file input so the same file can be re-uploaded if needed
+    this.value = '';
+  });
+
+  async function uploadFile(file) {
+    const userId = document.getElementById('userId').value.trim() || null;
+    const progress = document.getElementById('uploadProgress');
+    const fill = document.getElementById('progressFill');
+    const status = document.getElementById('uploadStatus');
+
+    progress.style.display = 'block';
+    fill.style.width = '20%';
+    status.textContent = 'Uploading ' + file.name + '...';
+    status.style.color = '#94a3b8';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    if (userId) formData.append('user_id', userId);
+
+    try {
+      fill.style.width = '60%';
+      const res = await fetch('/api/ingest', { method: 'POST', body: formData });
+      const data = await res.json();
+      fill.style.width = '100%';
+
+      if (res.ok) {
+        status.textContent = data.filename + ' — ' + data.chunks_indexed + ' chunks indexed';
+        status.style.color = '#22c55e';
+        statsD++;
+        document.getElementById('statD').textContent = statsD;
+        document.getElementById('headerStatus').textContent = 'Last upload: ' + data.filename;
+        appendSystemMsg(data.filename + ' ingested — ' + data.chunks_indexed + ' chunks &middot; type: ' + data.doc_type);
+      } else {
+        status.textContent = (data.detail || 'Upload failed');
+        status.style.color = '#ef4444';
+      }
+    } catch (e) {
+      status.textContent = 'Network error during upload';
+      status.style.color = '#ef4444';
+    } finally {
+      setTimeout(function() {
+        progress.style.display = 'none';
+        fill.style.width = '0%';
+        status.style.color = '#94a3b8';
+      }, 4000);
+    }
+  }
+
+  // Send Question
+  async function sendQuestion() {
+    const input = document.getElementById('question');
+    const question = input.value.trim();
+    if (!question) return;
+
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    input.value = '';
+    input.style.height = 'auto';
+
+    const welcome = document.getElementById('welcomeMsg');
+    if (welcome) welcome.remove();
+
+    appendUserMsg(question);
+    const loadingId = appendLoading();
+
+    const payload = {
+      question: question,
+      user_id: document.getElementById('userId').value.trim() || null,
+      doc_type_filter: document.getElementById('docTypeFilter').value || null,
+      source_filter: document.getElementById('sourceFilter').value.trim() || null,
+      top_k: parseInt(document.getElementById('topK').value),
+    };
+
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      removeLoading(loadingId);
+
+      if (res.ok) {
+        appendAssistantMsg(data.answer, data.sources, data.total_chunks_retrieved);
+        statsQ++;
+        statsC += data.total_chunks_retrieved;
+        document.getElementById('statQ').textContent = statsQ;
+        document.getElementById('statC').textContent = statsC;
+      } else {
+        appendErrorMsg(data.detail || 'An error occurred.');
+      }
+    } catch (e) {
+      removeLoading(loadingId);
+      appendErrorMsg('Network error. Is the server running?');
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  // Message Helpers
+  function appendUserMsg(text) {
+    const msgs = document.getElementById('messages');
+    msgs.insertAdjacentHTML('beforeend',
+      '<div class="msg user">' +
+        '<div class="avatar">&#128100;</div>' +
+        '<div class="bubble">' + escHtml(text) + '</div>' +
+      '</div>'
+    );
+    scrollBottom();
+  }
+
+  function appendAssistantMsg(answer, sources, total) {
+    const msgs = document.getElementById('messages');
+    const id = 'src_' + Date.now();
+    let sourcesHtml = '';
+    if (sources && sources.length) {
+      const chips = sources.map(function(s) {
+        return '<div class="source-chip">' +
+          '<span class="src-file">&#128196; ' + escHtml(s.source) + '</span>' +
+          '<span class="src-loc">' + escHtml(s.page_or_sheet) + ' &middot; ' + escHtml(s.doc_type) + '</span>' +
+        '</div>';
+      }).join('');
+      sourcesHtml =
+        '<button class="sources-toggle" onclick="toggleSources(\'' + id + '\')">' +
+          '&#128206; ' + total + ' source' + (total !== 1 ? 's' : '') + ' retrieved &#9662;' +
+        '</button>' +
+        '<div class="sources-list" id="' + id + '">' + chips + '</div>';
+    }
+
+    msgs.insertAdjacentHTML('beforeend',
+      '<div class="msg assistant">' +
+        '<div class="avatar">&#129302;</div>' +
+        '<div>' +
+          '<div class="bubble">' + formatAnswer(answer) + '</div>' +
+          sourcesHtml +
+        '</div>' +
+      '</div>'
+    );
+    scrollBottom();
+  }
+
+  function appendErrorMsg(msg) {
+    const msgs = document.getElementById('messages');
+    msgs.insertAdjacentHTML('beforeend',
+      '<div class="msg assistant">' +
+        '<div class="avatar">&#9888;&#65039;</div>' +
+        '<div class="bubble error-bubble">Error: ' + escHtml(msg) + '</div>' +
+      '</div>'
+    );
+    scrollBottom();
+  }
+
+  function appendSystemMsg(msg) {
+    const msgs = document.getElementById('messages');
+    msgs.insertAdjacentHTML('beforeend',
+      '<div style="text-align:center;font-size:0.78rem;color:#64748b;padding:4px 0;">' + msg + '</div>'
+    );
+    scrollBottom();
+  }
+
+  function appendLoading() {
+    const id = 'load_' + Date.now();
+    document.getElementById('messages').insertAdjacentHTML('beforeend',
+      '<div class="msg assistant" id="' + id + '">' +
+        '<div class="avatar">&#129302;</div>' +
+        '<div class="bubble"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>' +
+      '</div>'
+    );
+    scrollBottom();
+    return id;
+  }
+
+  function removeLoading(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function toggleSources(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('visible');
+  }
+
+  function scrollBottom() {
+    const msgs = document.getElementById('messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatAnswer(text) {
+    return String(text || '')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>');
+  }
+</script>
+</body>
+</html>

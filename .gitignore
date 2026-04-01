@@ -1,0 +1,62 @@
+.env
+.env.local
+.env.production
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local data and vector indexes
+vector_store/
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+*.faiss
+*.pkl
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Node
+node_modules/
+
+# Secrets & credentials
+*.pem
+*.key
+secrets/
+
+# OS files
+.DS_Store
+Thumbs.db
